@@ -132,7 +132,7 @@ quantile_rmse_scores = {'q10': [], 'q25': [], 'q50': [], 'q75': [], 'q90': []}
 input_dim = X_train.shape[1]
 n_feats = X_train.shape[2]
 model = build_model(input_dim, n_feats)
-model.save('sample.h5')
+
 with tf.device('/GPU:0'):
     model.fit(X_train, y_train, epochs=10, batch_size=600, validation_split=0.2)
     rmse_scores = model.evaluate(X_val, y_val, batch_size=600)
@@ -152,9 +152,6 @@ with tf.device('/GPU:0'):
     mean, q10, q25, q50, q75, q90 = model.predict(X_test)
     predictions = np.stack([mean, q10, q25, q50, q75, q90], axis=-1)
 
-print(f'shape:{predictions.shape}')
-
-# Выведите средние значения метрик RMSE для всех разбиений
 print("Mean RMSE (Mean):", np.mean(mean_rmse_scores))
 print("Mean RMSE (Q10):", np.mean(quantile_rmse_scores['q10']))
 print("Mean RMSE (Q25):", np.mean(quantile_rmse_scores['q25']))
@@ -162,3 +159,4 @@ print("Mean RMSE (Q50):", np.mean(quantile_rmse_scores['q50']))
 print("Mean RMSE (Q75):", np.mean(quantile_rmse_scores['q75']))
 print("Mean RMSE (Q90):", np.mean(quantile_rmse_scores['q90']))
 np.save('sample_submit.npy', predictions)
+model.save('model.h5')
