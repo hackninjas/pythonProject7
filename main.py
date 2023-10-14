@@ -17,13 +17,17 @@ else:
 def normalize_data(data):
     return (data - np.mean(data)) / np.std(data)
 
-
+#1. Загрузка тренировочных и тестовых данных
 X_train = np.load('y_smp_train.npy')
 y_train = np.load('pars_smp_train.npy')
 X_test = np.load('y_smp_test.npy')
 y_train = np.squeeze(y_train)
+
+#2.Масштабировние
 X_train = normalize_data(X_train)
 X_test = normalize_data(X_test)
+
+#3.Разделение на тренировочную и валидационную выборки
 X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.3, random_state=42)
 
 
@@ -134,6 +138,7 @@ n_feats = X_train.shape[2]
 model = build_model(input_dim, n_feats)
 
 with tf.device('/GPU:0'):
+
     model.fit(X_train, y_train, epochs=10, batch_size=600, validation_split=0.2)
     rmse_scores = model.evaluate(X_val, y_val, batch_size=600)
     print(f'sample score :{calculate_score(y_val, rmse_scores[1])}')
