@@ -4,8 +4,8 @@ from keras import Input, Model
 from keras.src.layers import Conv1D, LSTM, Dense, MaxPooling1D, Bidirectional, \
     BatchNormalization, Dropout, Flatten
 from sklearn.model_selection import train_test_split
+import keras.backend as K
 
-# Проверка доступности графического процессора
 physical_devices = tf.config.list_physical_devices('GPU')
 if len(physical_devices) > 0:
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
@@ -14,38 +14,22 @@ else:
     print('Графический процессор не найден.')
 
 
-# Установка Metal в качестве аппаратного ускорителя
-def normalize_data(matrix):
-    mean = np.mean(matrix, axis=0)
-    std = np.std(matrix, axis=0)
-    normalized_matrix = (matrix - mean) / std
-    return normalized_matrix
+def normalize_data(data):
+    return (data - np.mean(data)) / np.std(data)
 
 
 X_train = np.load('y_smp_train.npy')
 y_train = np.load('pars_smp_train.npy')
 X_test = np.load('y_smp_test.npy')
 y_train = np.squeeze(y_train)
-
 X_train = normalize_data(X_train)
 X_test = normalize_data(X_test)
-y_train = normalize_data(y_train)
-
-print(X_train.shape)
-
-X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
+X_train, X_val, y_train, y_val = train_test_split(X_train, y_train, test_size=0.3, random_state=42)
 
 
-# Создаем функцию потерь RMSE Loss
-def wrmse_loss(y_true, y_pred):
-    # Расчет квадратов ошибок
-    square_errors = tf.square(y_true - y_pred)
-    # Вычисление взвешенной суммы квадратных ошибок
-    weighted_rmse = tf.reduce_sum(tf.minimum(square_errors, 0.01 * tf.ones_like(square_errors)), axis=-1)
-    # Нормализация метрики для получения WRMSE
-    wrmse_normalized = tf.exp(-tf.sqrt(weighted_rmse))
-    return wrmse_normalized
 
+def mean_loss(y_true, y_pred):
+    return K.mean(K.square(y_pred - y_true), axis=-1)
 
 def calculate_score(y_true, y_pred):
     # Веса для каждой части метрики
@@ -54,8 +38,7 @@ def calculate_score(y_true, y_pred):
     w_calibration = 0.1
 
     # Расчет точности предсказания среднего
-    rmse = np.sqrt(np.mean(np.minimum((y_pred - y_true) ** 2, 0.01)))
-    score_rmse = np.exp(-rmse)
+    score_rmse = mean_loss(y_true, y_pred)
 
     # Расчет точности предсказания квантилей
     quantiles = np.percentile(np.abs(y_pred - y_true), [10, 25, 50, 75, 90])
@@ -111,19 +94,18 @@ def quantile_loss_90(y_true, y_pred):
     return loss
 
 
-def build_model(input_dim=50, n_features=3):
+def build_model(input_dim=200, n_features=3):
     inputs = Input(shape=(input_dim, n_features))
     x = Conv1D(filters=32, kernel_size=3, activation='relu')(inputs)
     x = MaxPooling1D()(x)
-    x = Conv1D(filters=64, kernel_size=4, activation='relu')(x)
+    x = Conv1D(filters=64, kernel_size=3, activation='relu')(x)
     x = MaxPooling1D()(x)
     x = Bidirectional(LSTM(units=32, return_sequences=True))(x)
     x = BatchNormalization()(x)
     x = Bidirectional(LSTM(units=64))(x)
     x = Flatten()(x)
-    x = Dense(128, activation='relu')(x)
     x = Dropout(0.5)(x)
-
+    x = Dense(64, activation='elu')(x)
     mean = Dense(15, activation='linear', name='mean')(x)
     q10 = Dense(15, activation='linear', name='q10')(x)
     q25 = Dense(15, activation='linear', name='q25')(x)
@@ -133,7 +115,7 @@ def build_model(input_dim=50, n_features=3):
     outputs = [mean, q10, q25, q50, q75, q90]
     model = Model(inputs=inputs, outputs=outputs)
     model.compile(loss={
-        'mean': wrmse_loss,
+        'mean': mean_loss,
         'q10': quantile_loss_10,
         'q25': quantile_loss_25,
         'q50': quantile_loss_50,
@@ -150,10 +132,10 @@ quantile_rmse_scores = {'q10': [], 'q25': [], 'q50': [], 'q75': [], 'q90': []}
 input_dim = X_train.shape[1]
 n_feats = X_train.shape[2]
 model = build_model(input_dim, n_feats)
-
+model.save('sample.h5')
 with tf.device('/GPU:0'):
-    model.fit(X_train, y_train, epochs=2, batch_size=256, validation_split=0.2, verbose=2)
-    rmse_scores = model.evaluate(X_val, y_val, batch_size=256)
+    model.fit(X_train, y_train, epochs=10, batch_size=600, validation_split=0.2)
+    rmse_scores = model.evaluate(X_val, y_val, batch_size=600)
     print(f'mean :{calculate_score(y_val, rmse_scores[1])}')
     mean_rmse_scores.append(rmse_scores[1])  # среднее RMSE
     quantile_rmse_scores['q10'].append(rmse_scores[2])  # RMSE для квантили 10
