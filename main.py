@@ -136,19 +136,15 @@ model = build_model(input_dim, n_feats)
 with tf.device('/GPU:0'):
     model.fit(X_train, y_train, epochs=10, batch_size=600, validation_split=0.2)
     rmse_scores = model.evaluate(X_val, y_val, batch_size=600)
-    print(f'mean :{calculate_score(y_val, rmse_scores[1])}')
-    mean_rmse_scores.append(rmse_scores[1])  # среднее RMSE
-    quantile_rmse_scores['q10'].append(rmse_scores[2])  # RMSE для квантили 10
-    print(f'10 :{calculate_score(y_val, rmse_scores[2])}')
-    quantile_rmse_scores['q25'].append(rmse_scores[3])  # RMSE для квантили 25
-    print(f'25 :{calculate_score(y_val, rmse_scores[3])}')
-    quantile_rmse_scores['q50'].append(rmse_scores[4])  # RMSE для квантили 50
-    print(f'50 :{calculate_score(y_val, rmse_scores[4])}')
-    quantile_rmse_scores['q75'].append(rmse_scores[5])  # RMSE для квантили 75
-    print(f'75 :{calculate_score(y_val, rmse_scores[5])}')
-    quantile_rmse_scores['q90'].append(rmse_scores[6])  # RMSE для квантили 90
-    print(f'90 :{calculate_score(y_val, rmse_scores[6])}')
+    print(f'sample score :{calculate_score(y_val, rmse_scores[1])}')
 
+    quantile_rmse_scores['q10'].append(rmse_scores[2])  # RMSE для квантили 10
+    quantile_rmse_scores['q25'].append(rmse_scores[3])  # RMSE для квантили 25
+    quantile_rmse_scores['q50'].append(rmse_scores[4])  # RMSE для квантили 50
+    quantile_rmse_scores['q75'].append(rmse_scores[5])  # RMSE для квантили 75
+    quantile_rmse_scores['q90'].append(rmse_scores[6])  # RMSE для квантили 90
+
+    #Предсказания для тестовых данных
     mean, q10, q25, q50, q75, q90 = model.predict(X_test)
     predictions = np.stack([mean, q10, q25, q50, q75, q90], axis=-1)
 
